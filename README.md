@@ -19,7 +19,7 @@ Supports **Distance Vector**, **Dijkstra (Link State)**, and **Bellman-Ford**, w
 - **Backend:** Java, Spring Boot, Maven  
 - **Frontend:** React, D3.js (for graph visualization)  
 - **Data Formats:** TXT, JSON, CSV  
-- **Deployment:** Render/Heroku (backend), Netlify/Vercel (frontend)  
+- **Deployment:** Render(backend), Netlify(frontend)  
 
 ## Project Structure
 ```
@@ -46,11 +46,3 @@ cd frontend
 npm install
 npm run dev
 ````
-
-## Example
-
-*Coming soon — screenshots and demo GIFs will go here.*
-
-## Live Demo
-
-*Coming soon — link to deployed site (Netlify/Vercel + Render/Heroku).*
