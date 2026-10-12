@@ -2,6 +2,8 @@
 
 An interactive network routing analysis tool with a visual topology editor, algorithm playback, and failure scenarios.
 
+[Open the live workspace](https://network-routing-simulator.onrender.com/). The free hosting instance can take about a minute to wake after inactivity.
+
 ## What you can do
 
 - Start with redundant, branch, or disconnected example networks.
@@ -24,7 +26,7 @@ Failures start a fresh calculation. This is a routing algorithm laboratory, not 
 - **Engine:** Java 17, deterministic validated graph model and execution traces.
 - **API:** Spring Boot. `POST /api/simulate` returns the path, cost, all routing tables, and trace. `GET /api/health` reports availability.
 - **Interface:** React, TypeScript, Vite, and accessible SVG graph controls.
-- **Deployment:** Docker builds the frontend and serves it through Spring Boot on the same origin. No separate frontend service or CORS configuration is needed.
+- **Deployment:** Docker builds the frontend and serves it through Spring Boot on the same origin. No separate frontend service or CORS configuration is needed. Render uses the public repository source, so future releases require Manual Deploy → Deploy latest commit.
 
 The original Java CLI, exporters, and `/api/run` endpoint remain available. They share the corrected bidirectional routing engine. The earlier `GraphView.jsx` remains in source as a legacy component and is not used by the current interface.
 
