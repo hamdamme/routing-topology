@@ -88,4 +88,3 @@ npm run build
 
 Tests check routes, next hops, unreachable destinations, disabled links and routers, recovery, input validation, immutable trace snapshots, synchronous vector rounds, and the legacy parser. Seeded networks are compared with an independent Floyd–Warshall reference. API tests exercise response contracts and malformed input. Frontend tests verify history restoration, grouped moves, history limits, shared snapshots, and invalid-link recovery. GitHub Actions runs the Java tests and frontend tests, lint, and production build.
 
-Current implementation and release status: [ROADMAP](ROADMAP.md).
