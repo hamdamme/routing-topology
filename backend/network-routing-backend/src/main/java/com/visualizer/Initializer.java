@@ -1,70 +1,45 @@
 package com.visualizer;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
+import java.util.*;
+import java.util.regex.*;
 
 public class Initializer {
-
-    // Load from a file path
-    public static Topology load(String filepath) throws IOException {
-        try (BufferedReader br = new BufferedReader(new FileReader(filepath))) {
-            return parse(br);
-        }
+    public static Topology load(String filepath) throws IOException {try(var reader=new BufferedReader(new FileReader(filepath))){return parse(reader);}}
+    public static Topology loadFromString(String text) throws IOException {
+        if(text==null || text.length()>30000)throw new IllegalArgumentException("Provide a topology configuration of at most 30000 characters.");
+        try(var reader=new BufferedReader(new StringReader(text))){return parse(reader);}
     }
-
-    // Load from a config string (for API input)
-    public static Topology loadFromString(String configText) throws IOException {
-        try (BufferedReader br = new BufferedReader(new StringReader(configText))) {
-            return parse(br);
-        }
-    }
-
-    // Shared parsing logic
-    private static Topology parse(BufferedReader br) throws IOException {
-        Topology topology = new Topology();
-
-        // ✅ Skip the first line (number of routers)
-        br.readLine();
-
-        String line;
-        while ((line = br.readLine()) != null) {
-            if (line.trim().isEmpty()) continue;
-
-            // Example line: R1: (R2, 140), (R4, 180)
-            String[] parts = line.split(":");
-            String routerName = parts[0].trim();
-
-            Router router = topology.getRouter(routerName);
-            if (router == null) {
-                router = new Router(routerName);
-                topology.addRouter(router);
+    private static Topology parse(BufferedReader reader) throws IOException {
+        var lines=reader.lines().map(String::trim).filter(s->!s.isEmpty()).toList();
+        if(lines.isEmpty())throw new IllegalArgumentException("Provide a router count and topology.");
+        int count;
+        try{count=Integer.parseInt(lines.get(0));}catch(NumberFormatException e){throw new IllegalArgumentException("First line must be the router count.");}
+        if(count<1 || count>30)throw new IllegalArgumentException("Use 1–30 routers.");
+        Topology topology=new Topology();Set<String> declared=new HashSet<>();
+        Pattern row=Pattern.compile("([A-Za-z0-9_-]{1,20})\\s*:\\s*(.*)");
+        Pattern pair=Pattern.compile("\\(([A-Za-z0-9_-]{1,20})\\s*,\\s*(\\d+)\\)");
+        List<Simulation.Link> links=new ArrayList<>();Map<String,Integer> costs=new TreeMap<>();
+        for(int i=1;i<lines.size();i++) {
+            var match=row.matcher(lines.get(i));if(!match.matches())throw new IllegalArgumentException("Invalid router line " +(i+1)+".");
+            String name=match.group(1);if(!declared.add(name))throw new IllegalArgumentException("Duplicate router declaration.");
+            if(topology.getRouter(name)==null)topology.addRouter(new Router(name));
+            String rest=match.group(2);int end=0;var neighbors=pair.matcher(rest);
+            while(neighbors.find()) {
+                String gap=rest.substring(end,neighbors.start()).trim();
+                if(end==0?!gap.isEmpty():!gap.equals(","))throw new IllegalArgumentException("Separate neighbors with commas.");
+                String to=neighbors.group(1);int cost;
+                try{cost=Integer.parseInt(neighbors.group(2));}catch(NumberFormatException e){throw new IllegalArgumentException("Invalid link cost.");}
+                String key=name.compareTo(to)<0?name+"/"+to:to+"/"+name;
+                if(costs.containsKey(key)&&costs.get(key)!=cost)throw new IllegalArgumentException("Conflicting bidirectional link costs.");
+                if(!costs.containsKey(key)){costs.put(key,cost);links.add(new Simulation.Link(key,name,to,cost,false));}
+                if(topology.getRouter(to)==null)topology.addRouter(new Router(to));
+                topology.getRouter(name).addNeighbor(to,cost);topology.getRouter(to).addNeighbor(name,cost);end=neighbors.end();
             }
-
-            if (parts.length > 1) {
-                for (String neighbor : parts[1].split("\\)")) {
-                    if (!neighbor.trim().isEmpty()) {
-                        String n = neighbor.replaceAll("[()]", "").trim(); // e.g. R2,140
-                        String[] pair = n.split(",");
-                        if (pair.length == 2) {
-                            String neighborName = pair[0].trim();
-                            int cost = Integer.parseInt(pair[1].trim());
-
-                            router.addNeighbor(neighborName, cost);
-
-                            // Ensure neighbor exists in topology
-                            Router nb = topology.getRouter(neighborName);
-                            if (nb == null) {
-                                nb = new Router(neighborName);
-                                topology.addRouter(nb);
-                            }
-                        }
-                    }
-                }
-            }
+            if(!rest.substring(end).trim().isEmpty())throw new IllegalArgumentException("Invalid neighbor list.");
         }
-
+        if(topology.getRouters().size()!=count || declared.size()!=count)throw new IllegalArgumentException("Router count must match all declared routers.");
+        Simulation.validate(new Simulation.Network(declared.stream().map(n->new Simulation.Node(n,false)).toList(),links));
         return topology;
     }
 }

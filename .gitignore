@@ -1,1 +1,12 @@
 .DS_Store
+**/target/
+**/node_modules/
+**/dist/
+**/.env
+**/.env.*
+!**/.env.example
+**/results_*
+**/output_*
+**/topology_*.dot
+**/topology_*.png
+**/topology_*.svg

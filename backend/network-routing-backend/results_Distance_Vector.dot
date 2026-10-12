@@ -1,4 +1,0 @@
-graph Network {
-  node [shape=circle, style=filled, color=lightblue];
-  R1 -- R2 [label="140"];
-}
