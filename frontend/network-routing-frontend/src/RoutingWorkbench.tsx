@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import RoutingGraph from "./RoutingGraph";
 import {
   algorithms,
@@ -8,14 +8,26 @@ import {
   scenarios,
 } from "./model";
 import type { Algorithm, Result, Topology } from "./model";
+import {
+  historyFor,
+  historyReducer,
+  loadSharedWorkspace,
+  shareLink,
+} from "./workspace";
+import type { Workspace } from "./workspace";
 const API = import.meta.env.VITE_API_BASE || "";
 const algorithmIds = Object.keys(algorithms) as Algorithm[];
 export default function RoutingWorkbench() {
-  const [topology, setTopology] = useState<Topology>(() => sample());
-  const [scenario, setScenario] = useState(0);
-  const [source, setSource] = useState("R1"),
-    [destination, setDestination] = useState("R4");
-  const [algorithm, setAlgorithm] = useState<Algorithm>("dijkstra");
+  const [initial] = useState(() => loadSharedWorkspace(window.location.hash));
+  const [history, dispatch] = useReducer(
+    historyReducer,
+    initial.workspace,
+    historyFor,
+  );
+  const { topology, source, destination, algorithm, scenario } =
+    history.present;
+  const [notice, setNotice] = useState(initial.message);
+  const [sharedUrl, setSharedUrl] = useState("");
   const [selection, setSelection] = useState<string | null>(null),
     [connect, setConnect] = useState(false);
   const [results, setResults] = useState<Partial<Record<Algorithm, Result>>>(
@@ -61,11 +73,75 @@ export default function RoutingWorkbench() {
     setPlaying(false);
     setError("");
   }
-  function edit(next: Topology) {
+  function commit(change: Partial<Workspace>, clearSelection = true) {
     invalidate();
-    setTopology(next);
-    setSelection(null);
+    dispatch({ type: "edit", change });
+    setSharedUrl("");
+    setNotice("");
+    if (clearSelection) setSelection(null);
   }
+  function edit(next: Topology) {
+    commit({ topology: next });
+  }
+  function restoreHistory(type: "undo" | "redo") {
+    invalidate();
+    dispatch({ type });
+    setSelection(null);
+    setConnect(false);
+    setSharedUrl("");
+    setNotice(
+      type === "undo"
+        ? "Last edit undone. Run the analysis to refresh results."
+        : "Edit restored. Run the analysis to refresh results.",
+    );
+  }
+  function generateShareLink() {
+    setError("");
+    try {
+      setSharedUrl(shareLink(window.location.href, history.present));
+      setNotice("Link ready. Anyone with this link can open this network.");
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Unable to create the link.",
+      );
+    }
+  }
+  useEffect(() => {
+    if (!topology.nodes.some((n) => n.id === from))
+      setFrom(topology.nodes[0].id);
+    if (!topology.nodes.some((n) => n.id === to))
+      setTo(topology.nodes.at(-1)!.id);
+  }, [topology, from, to]);
+  useEffect(() => {
+    function shortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement;
+      if (
+        !(event.ctrlKey || event.metaKey) ||
+        event.altKey ||
+        target.closest("input,select,textarea,[contenteditable=true]")
+      )
+        return;
+      const key = event.key.toLowerCase();
+      const type =
+        key === "z"
+          ? event.shiftKey
+            ? "redo"
+            : "undo"
+          : key === "y"
+            ? "redo"
+            : null;
+      if (!type) return;
+      event.preventDefault();
+      invalidate();
+      dispatch({ type });
+      setSelection(null);
+      setConnect(false);
+      setSharedUrl("");
+      setNotice("");
+    }
+    window.addEventListener("keydown", shortcut);
+    return () => window.removeEventListener("keydown", shortcut);
+  }, []);
   async function run(network = topology, src = source, dst = destination) {
     const active = network.nodes.filter((n) => !n.disabled);
     if (
@@ -146,7 +222,7 @@ export default function RoutingWorkbench() {
         l.id === id ? { ...l, disabled: !l.disabled } : l,
       ),
     };
-    setTopology(next);
+    commit({ topology: next }, false);
     void run(next);
   }
   function addLink(pair?: string) {
@@ -200,26 +276,32 @@ export default function RoutingWorkbench() {
   }
   function load(index: number) {
     const network = sample(index);
-    edit(network);
-    setScenario(index);
-    setSource("R1");
-    setDestination("R4");
+    commit({
+      topology: network,
+      scenario: index,
+      source: "R1",
+      destination: "R4",
+    });
     setFrom("R1");
     setTo("R2");
     setConnect(false);
   }
   function chooseAlgorithm(value: Algorithm) {
-    setAlgorithm(value);
+    dispatch({ type: "edit", change: { algorithm: value } });
+    setSharedUrl("");
     setPosition(0);
     setPlaying(false);
   }
   function importNetwork() {
     try {
       const next = parseTopology(JSON.parse(importText));
-      edit(next);
       const active = next.nodes.filter((n) => !n.disabled);
-      setSource(active[0]?.id || "");
-      setDestination(active.at(-1)?.id || "");
+      commit({
+        topology: next,
+        source: active[0]?.id || "",
+        destination: active.at(-1)?.id || "",
+        scenario: -1,
+      });
       setFrom(next.nodes[0].id);
       setTo(next.nodes[1]?.id || next.nodes[0].id);
       setImportOpen(false);
@@ -268,6 +350,7 @@ export default function RoutingWorkbench() {
             value={scenario}
             onChange={(e) => load(Number(e.target.value))}
           >
+            {scenario === -1 && <option value={-1}>Custom network</option>}
             {scenarios.map((s, i) => (
               <option key={s} value={i}>
                 {s}
@@ -290,8 +373,58 @@ export default function RoutingWorkbench() {
         >
           Export JSON
         </button>
-        <button onClick={() => load(scenario)}>Reset</button>
+        <button onClick={() => load(scenario < 0 ? 0 : scenario)}>Reset</button>
+        <button
+          disabled={!history.past.length && !history.gesture}
+          onClick={() => restoreHistory("undo")}
+          title="Ctrl/Cmd + Z"
+        >
+          ↶ Undo
+        </button>
+        <button
+          disabled={!history.future.length}
+          onClick={() => restoreHistory("redo")}
+          title="Ctrl/Cmd + Shift + Z"
+        >
+          ↷ Redo
+        </button>
+        <button onClick={generateShareLink}>Share network</button>
       </div>
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
+      {sharedUrl && (
+        <section className="share-panel">
+          <label>
+            Shareable network link
+            <input
+              aria-label="Shareable network link"
+              value={sharedUrl}
+              readOnly
+              onFocus={(e) => e.target.select()}
+            />
+          </label>
+          <button
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(sharedUrl);
+                setNotice("Network link copied.");
+              } catch {
+                setNotice("Select and copy the link above.");
+              }
+            }}
+          >
+            Copy link
+          </button>
+          <p className="hint">
+            Includes router names, layout, link costs, failures, endpoints, and
+            the selected algorithm. It is a snapshot; later edits create a new
+            link.
+          </p>
+        </section>
+      )}
       {error && (
         <div className="error" role="alert">
           {error}
@@ -350,14 +483,12 @@ export default function RoutingWorkbench() {
               selection={selection}
               connect={connect}
               onSelect={setSelection}
-              onMove={(id, x, y) =>
-                setTopology((current) => ({
-                  ...current,
-                  nodes: current.nodes.map((n) =>
-                    n.id === id ? { ...n, x, y } : n,
-                  ),
-                }))
-              }
+              onMoveStart={() => dispatch({ type: "beginMove" })}
+              onMoveEnd={() => dispatch({ type: "endMove" })}
+              onMove={(id, x, y) => {
+                dispatch({ type: "move", id, x, y });
+                setSharedUrl("");
+              }}
               onConnect={addLink}
             />
           </div>
@@ -386,7 +517,7 @@ export default function RoutingWorkbench() {
                   value={source}
                   onChange={(e) => {
                     invalidate();
-                    setSource(e.target.value);
+                    commit({ source: e.target.value }, false);
                   }}
                 >
                   {topology.nodes.map((n) => (
@@ -404,7 +535,7 @@ export default function RoutingWorkbench() {
                   value={destination}
                   onChange={(e) => {
                     invalidate();
-                    setDestination(e.target.value);
+                    commit({ destination: e.target.value }, false);
                   }}
                 >
                   {topology.nodes.map((n) => (
@@ -478,13 +609,17 @@ export default function RoutingWorkbench() {
                           l.to !== selectedNode.id,
                       ),
                     };
-                    edit(next);
-                    if (source === selectedNode.id)
-                      setSource(next.nodes.find((n) => !n.disabled)?.id || "");
-                    if (destination === selectedNode.id)
-                      setDestination(
-                        next.nodes.find((n) => !n.disabled)?.id || "",
-                      );
+                    commit({
+                      topology: next,
+                      source:
+                        source === selectedNode.id
+                          ? next.nodes.find((n) => !n.disabled)?.id || ""
+                          : source,
+                      destination:
+                        destination === selectedNode.id
+                          ? next.nodes.find((n) => !n.disabled)?.id || ""
+                          : destination,
+                    });
                     setFrom(next.nodes[0].id);
                     setTo(next.nodes.at(-1)!.id);
                   }}
@@ -511,14 +646,19 @@ export default function RoutingWorkbench() {
                         value <= 9999
                       ) {
                         invalidate();
-                        setTopology({
-                          ...topology,
-                          links: topology.links.map((l) =>
-                            l.id === selectedLink.id
-                              ? { ...l, cost: value }
-                              : l,
-                          ),
-                        });
+                        commit(
+                          {
+                            topology: {
+                              ...topology,
+                              links: topology.links.map((l) =>
+                                l.id === selectedLink.id
+                                  ? { ...l, cost: value }
+                                  : l,
+                              ),
+                            },
+                          },
+                          false,
+                        );
                       }
                     }}
                   />
@@ -704,7 +844,7 @@ export default function RoutingWorkbench() {
                         disabled: false,
                       })),
                     };
-                    setTopology(next);
+                    commit({ topology: next });
                     void run(next);
                   }}
                 >

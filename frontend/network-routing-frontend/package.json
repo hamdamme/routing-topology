@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test src/workspace.test.ts"
   },
   "dependencies": {
     "react": "^19.1.1",

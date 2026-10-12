@@ -10,6 +10,8 @@ type Props = {
   connect: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, x: number, y: number) => void;
+  onMoveStart: () => void;
+  onMoveEnd: () => void;
   onConnect: (id: string) => void;
 };
 export default function RoutingGraph({
@@ -22,6 +24,8 @@ export default function RoutingGraph({
   connect,
   onSelect,
   onMove,
+  onMoveStart,
+  onMoveEnd,
   onConnect,
 }: Props) {
   const svg = useRef<SVGSVGElement>(null);
@@ -62,9 +66,11 @@ export default function RoutingGraph({
         if (drag.current.moved) onMove(drag.current.id, p.x, p.y);
       }}
       onPointerUp={() => {
+        if (drag.current) onMoveEnd();
         drag.current = null;
       }}
       onPointerCancel={() => {
+        if (drag.current) onMoveEnd();
         drag.current = null;
       }}
     >
@@ -156,6 +162,7 @@ export default function RoutingGraph({
             className="router"
             onPointerDown={(e) => {
               if (connect) return;
+              onMoveStart();
               e.currentTarget.setPointerCapture(e.pointerId);
               drag.current = {
                 id: node.id,

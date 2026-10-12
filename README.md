@@ -8,6 +8,8 @@ An interactive network routing analysis tool with a visual topology editor, algo
 
 - Start with redundant, branch, or disconnected example networks.
 - Drag routers, add routers and links, edit costs, and inspect connections. Keyboard users can select graph elements with Tab and move routers with arrow keys.
+- Undo and redo up to 50 edits, including complete router drags. Use Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z outside text fields.
+- Share a snapshot link containing the topology, layout, costs, failures, endpoints, and selected algorithm.
 - Choose source and destination routers and compare Dijkstra, Bellman–Ford, and Distance Vector.
 - Replay Dijkstra settlements and relaxations, Bellman–Ford passes, and synchronous Distance Vector rounds.
 - Disable a router or link, recompute routes, and compare the result with the same topology when all connections are restored.
@@ -19,7 +21,7 @@ Links are bidirectional with integer costs from 1 to 9999. Networks support 1–
 
 Dijkstra and Bellman–Ford compute tables from every router; playback describes the selected source. Distance Vector uses simultaneous rounds: each router reads its neighbors' vectors from the preceding round. Comparison passes and rounds describe different operations and are not equivalent performance measures. Equal-cost routes may have different next hops or hop counts.
 
-Failures start a fresh calculation. This is a routing algorithm laboratory, not a packet simulator or implementation of OSPF, RIP, protocol timers, split horizon, poison reverse, or count to infinity. Layout changes do not affect link costs. Browser edits are temporary; export JSON to preserve a network.
+Failures start a fresh calculation. This is a routing algorithm laboratory, not a packet simulator or implementation of OSPF, RIP, protocol timers, split horizon, poison reverse, or count to infinity. Layout changes do not affect link costs. Browser edits and history are temporary; export JSON or save a shared link to preserve a network. Shared links store a snapshot in the URL fragment, round layout coordinates to whole pixels, and start with an empty editing history. Later edits do not change an existing link. Links are limited to 24,000 encoded characters; use JSON export for larger snapshots.
 
 ## Architecture
 
@@ -79,10 +81,11 @@ Coordinates are optional during import and have no effect on routing. The API ac
 ```sh
 mvn test
 cd frontend/network-routing-frontend
+npm test
 npm run lint
 npm run build
 ```
 
-Tests check routes, next hops, unreachable destinations, disabled links and routers, recovery, input validation, immutable trace snapshots, synchronous vector rounds, and the legacy parser. Seeded networks are compared with an independent Floyd–Warshall reference. API tests exercise response contracts and malformed input. GitHub Actions runs the Java tests and frontend checks.
+Tests check routes, next hops, unreachable destinations, disabled links and routers, recovery, input validation, immutable trace snapshots, synchronous vector rounds, and the legacy parser. Seeded networks are compared with an independent Floyd–Warshall reference. API tests exercise response contracts and malformed input. Frontend tests verify history restoration, grouped moves, history limits, shared snapshots, and invalid-link recovery. GitHub Actions runs the Java tests and frontend tests, lint, and production build.
 
 Current implementation and release status: [ROADMAP](ROADMAP.md).
