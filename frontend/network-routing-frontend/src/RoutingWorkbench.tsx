@@ -312,6 +312,7 @@ export default function RoutingWorkbench() {
   }
   return (
     <main>
+      <a className="portfolio-link" href="https://www.hamdam.me/#projects">← Back to portfolio</a>
       <header>
         <div className="brandmark" aria-hidden="true">
           ⌘

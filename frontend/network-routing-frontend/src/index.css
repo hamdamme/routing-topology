@@ -560,3 +560,12 @@ footer span {
   flex-basis: 100%;
   margin: 0;
 }
+
+.portfolio-link {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: #426853;
+  font-size: 13px;
+  text-decoration: none;
+}
+.portfolio-link:hover { text-decoration: underline; }
