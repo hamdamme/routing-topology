@@ -35,4 +35,20 @@ class SimulationApiTest {
                 .andExpect(status().isBadRequest());
     }
     @Test void healthEndpointIsAvailable() throws Exception {mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));}
+    @Test void legacyEndpointRejectsInvalidRequests() throws Exception {
+        for (String body : new String[]{"{}", "{\"algorithm\":null}",
+                "{\"algorithm\":\" \"}", "{\"algorithm\":\"dijkstra\"}",
+                "{\"algorithm\":\"unknown\",\"config\":\"1\\nA:\"}"}) {
+            mvc.perform(post("/api/run").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+        }
+    }
+    @Test void legacyEndpointAcceptsSupportedAlgorithms() throws Exception {
+        for (String algorithm : new String[]{"dv", "DIJKSTRA", "bf"}) {
+            String body = "{\"algorithm\":\"" + algorithm + "\",\"config\":\"2\\nA: (B, 7)\\nB: (A, 7)\"}";
+            mvc.perform(post("/api/run").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.tables.A").isArray());
+        }
+    }
 }
+

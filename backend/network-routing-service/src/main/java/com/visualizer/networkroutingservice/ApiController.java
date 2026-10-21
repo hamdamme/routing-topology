@@ -1,7 +1,8 @@
 package com.visualizer.networkroutingservice;
 
-import com.visualizer.*;  // ✅ import your backend classes
+import com.visualizer.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.util.*;
 @CrossOrigin(origins = "${cors.origin:*}")
@@ -23,20 +24,19 @@ public class ApiController {
 
     @PostMapping("/run")
     public RunResponse runAlgorithm(@RequestBody RunRequest req) throws Exception {
+        if (req.algorithm == null || req.algorithm.isBlank())
+            throw new IllegalArgumentException("Provide a routing algorithm: dv, dijkstra, or bf.");
         RunResponse response = new RunResponse();
         response.algorithm = req.algorithm;
 
-        // ✅ Load topology from config string
         Topology topo = Initializer.loadFromString(req.config);
 
-        // ✅ Initialize all routers
         for (Router r : topo.getRouters().values()) {
             r.initializeRoutingTable(topo);
         }
 
-        // ✅ Select and run algorithm
         RoutingAlgorithm algo;
-        switch (req.algorithm.toLowerCase()) {
+        switch (req.algorithm.strip().toLowerCase(Locale.ROOT)) {
             case "dv":
                 algo = new DistanceVector();
                 break;
@@ -51,7 +51,6 @@ public class ApiController {
         }
         algo.run(topo);
 
-        // ✅ Convert routing tables into JSON-friendly format
         for (Router r : topo.getRouters().values()) {
             List<Map<String, Object>> rows = new ArrayList<>();
             for (RoutingEntry entry : r.getRoutingTable().values()) {
@@ -65,5 +64,9 @@ public class ApiController {
         }
 
         return response;
+    }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> invalid(IllegalArgumentException error) {
+        return ResponseEntity.badRequest().body(Map.of("message", error.getMessage()));
     }
 }
