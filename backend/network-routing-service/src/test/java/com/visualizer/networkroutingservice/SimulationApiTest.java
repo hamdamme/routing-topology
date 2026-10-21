@@ -35,4 +35,35 @@ class SimulationApiTest {
                 .andExpect(status().isBadRequest());
     }
     @Test void healthEndpointIsAvailable() throws Exception {mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ok"));}
+    @Test void legacyEndpointRejectsInvalidRequests() throws Exception {
+        for (String body : new String[]{"{}", "{\"algorithm\":null}",
+                "{\"algorithm\":\" \"}", "{\"algorithm\":\"dijkstra\"}",
+                "{\"algorithm\":\"unknown\",\"config\":\"1\\nA:\"}"}) {
+            mvc.perform(post("/api/run").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+        }
+    }
+    @Test void legacyEndpointAcceptsSupportedAlgorithms() throws Exception {
+        for (String algorithm : new String[]{"dv", "DIJKSTRA", "bf"}) {
+            String body = "{\"algorithm\":\"" + algorithm + "\",\"config\":\"2\\nA: (B, 7)\\nB: (A, 7)\"}";
+            mvc.perform(post("/api/run").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.tables.A").isArray());
+        }
+    }
+    @Test void rejectsMissingNullAndBlankRoutingFields() throws Exception {
+        for (String field : new String[]{"source", "destination", "algorithm"}) {
+            String value = field.equals("source") ? "A" : field.equals("destination") ? "B" : "dijkstra";
+            String entry = "\"" + field + "\":\"" + value + "\"";
+            for (String replacement : new String[]{"\"" + field + "\":null", "\"" + field + "\":\"\""}) {
+                mvc.perform(post("/api/simulate").contentType(MediaType.APPLICATION_JSON)
+                        .content(request(7).replace(entry, replacement)))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+            }
+            String missing = request(7).replace("," + entry, "");
+            mvc.perform(post("/api/simulate").contentType(MediaType.APPLICATION_JSON).content(missing))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+        }
+    }
 }
+
+
