@@ -50,5 +50,20 @@ class SimulationApiTest {
                     .andExpect(status().isOk()).andExpect(jsonPath("$.tables.A").isArray());
         }
     }
+    @Test void rejectsMissingNullAndBlankRoutingFields() throws Exception {
+        for (String field : new String[]{"source", "destination", "algorithm"}) {
+            String value = field.equals("source") ? "A" : field.equals("destination") ? "B" : "dijkstra";
+            String entry = "\"" + field + "\":\"" + value + "\"";
+            for (String replacement : new String[]{"\"" + field + "\":null", "\"" + field + "\":\"\""}) {
+                mvc.perform(post("/api/simulate").contentType(MediaType.APPLICATION_JSON)
+                        .content(request(7).replace(entry, replacement)))
+                        .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+            }
+            String missing = request(7).replace("," + entry, "");
+            mvc.perform(post("/api/simulate").contentType(MediaType.APPLICATION_JSON).content(missing))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").isString());
+        }
+    }
 }
+
 

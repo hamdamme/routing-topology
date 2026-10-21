@@ -18,9 +18,9 @@ public final class Simulation {
 
     public static Result run(Network network, String source, String destination, String algorithm) {
         var graph = validate(network);
-        if (!graph.containsKey(source) || !graph.containsKey(destination))
+        if (source == null || destination == null || !graph.containsKey(source) || !graph.containsKey(destination))
             throw new IllegalArgumentException("Choose an enabled source and destination router.");
-        if (!List.of("dijkstra", "bf", "dv").contains(algorithm))
+        if (algorithm == null || !List.of("dijkstra", "bf", "dv").contains(algorithm))
             throw new IllegalArgumentException("Unknown routing algorithm.");
         Map<String, List<Row>> tables = new TreeMap<>();
         List<Step> trace = new ArrayList<>();
@@ -169,3 +169,4 @@ public final class Simulation {
         return List.of();
     }
 }
+
